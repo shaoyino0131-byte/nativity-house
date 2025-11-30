@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1st Century Peasant House - Fixed</title>
+    <title>1st Century Peasant House - Interactive Sandbox</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #3b4252; font-family: 'Noto Sans TC', sans-serif; }
         
@@ -52,6 +52,39 @@
         .tag { background: #4c566a; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: #e5e9f0; min-width: 35px; text-align: center; }
         .icon { min-width: 18px; }
 
+        /* Mode Status Badge - TOP RIGHT */
+        #edit-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #bf616a;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: none; /* Hidden by default */
+            z-index: 100;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+
+        /* Controls Tip - BOTTOM CENTER (Higher) */
+        #controls-tip {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: #ddd;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+            text-align: center;
+            z-index: 90;
+        }
+
         /* Label Toggle Button - BOTTOM LEFT */
         #label-toggle {
             position: absolute;
@@ -79,7 +112,6 @@
             position: absolute;
             bottom: 30px;
             right: 30px;
-            left: auto; 
             background: #88c0d0;
             color: #2e3440;
             border: none;
@@ -100,7 +132,7 @@
             transform: scale(1.05);
         }
     </style>
-    <!-- Import Three.js -->
+    <!-- Import Three.js and Controls -->
     <script type="importmap">
         {
             "imports": {
@@ -113,19 +145,24 @@
 <body>
     <div id="info">
         <div class="panel-header" onclick="document.getElementById('info').classList.toggle('collapsed')">
-            <h1><span>🏷️</span> 伯利恆之家：修正版</h1>
+            <h1><span>🛠️</span> 伯利恆沙盤系統</h1>
             <span style="font-size: 12px; color: #999;">▼</span>
         </div>
         <div id="panel-content">
-            <p><span class="icon">🪨</span><span><span class="tag">馬槽</span> <span class="highlight">嵌入式設計：</span> 改為淺色石材，與地基融為一體，不再突兀。</span></p>
-            <p><span class="icon">👶</span><span><span class="tag">聖子</span> <span class="highlight">安臥其中：</span> 耶穌已下沉至稻草堆中，不再懸空。</span></p>
-            <p><span class="icon">🚪</span><span><span class="tag">構造</span> <span class="highlight">實體開門：</span> 左側保留真實門洞與木門。</span></p>
+            <p><span class="icon">👆</span><span><span class="tag">選取</span> 點擊人物或物件即可選取。</span></p>
+            <p><span class="icon">↔️</span><span><span class="tag">移動</span> 拖曳出現的箭頭來搬動位置。</span></p>
+            <p><span class="icon">🔄</span><span><span class="tag">旋轉</span> 選取後按 <b>R</b> 鍵切換為旋轉模式。</span></p>
+            <p><span class="icon">🔒</span><span><span class="tag">保護</span> 建築結構（牆壁、馬槽）已鎖定。</span></p>
             <p style="margin-top:12px; font-size: 11px; color: #81a1c1; border-top: 1px solid #4c566a; padding-top: 8px;">
-                *請近距離觀察馬槽細節*
+                *現在您可以自由安排場景了*
             </p>
         </div>
     </div>
 
+    <div id="edit-status">編輯模式：已選取物件</div>
+    <div id="controls-tip">點擊物件選取 | 按 'T' 移動 | 按 'R' 旋轉 | 點擊空白處取消</div>
+
+    <!-- RESTORED BUTTONS -->
     <button id="label-toggle" onclick="toggleLabels()">
         <span id="lbl-icon">👁️</span> <span id="lbl-text">隱藏空間標籤</span>
     </button>
@@ -137,6 +174,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
         // --- 1. Scene Setup ---
         const scene = new THREE.Scene();
@@ -153,66 +191,49 @@
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.2;
-        renderer.transparent = true;
         document.body.appendChild(renderer.domElement);
 
         // --- 2. Controls ---
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.05; 
-        controls.target.set(0, 0.5, 0);
+        const orbit = new OrbitControls(camera, renderer.domElement);
+        orbit.enableDamping = true;
+        orbit.dampingFactor = 0.05;
+        orbit.maxPolarAngle = Math.PI / 2 - 0.05; 
 
         // --- 3. Lighting ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); 
-        scene.add(ambientLight);
-
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
         const mainLight = new THREE.DirectionalLight(0xfffce8, 1.2);
         mainLight.position.set(-10, 20, 10);
         mainLight.castShadow = true;
-        mainLight.shadow.mapSize.width = 2048;
-        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.mapSize.width = 2048; mainLight.shadow.mapSize.height = 2048;
         scene.add(mainLight);
-
-        const fillLight = new THREE.PointLight(0xffaa55, 0.8, 20);
-        fillLight.position.set(2, 5, 2);
-        scene.add(fillLight);
+        const fillLight = new THREE.PointLight(0xffaa55, 0.8, 20); fillLight.position.set(2, 5, 2); scene.add(fillLight);
 
         // --- 4. Materials ---
         const matWallOpaque = new THREE.MeshStandardMaterial({ color: 0xE6Dcc3, roughness: 0.9 });
-        const matWallTrans = new THREE.MeshStandardMaterial({ 
-            color: 0xE6Dcc3, roughness: 0.9, transparent: true, opacity: 0.3,
-            side: THREE.DoubleSide, depthWrite: false
-        });
+        const matWallTrans = new THREE.MeshStandardMaterial({ color: 0xE6Dcc3, roughness: 0.9, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
         const matStoneFloor = new THREE.MeshStandardMaterial({ color: 0xA89F91, roughness: 0.9 });
         const matMudFloor = new THREE.MeshStandardMaterial({ color: 0x8D6E63, roughness: 1.0 });
-        
-        // Manger material to match floor/stone for embedded look
         const matMangerStone = new THREE.MeshStandardMaterial({ color: 0xA89F91, roughness: 0.95 }); 
-        
-        // FIX: Re-defined matStoneDark for the Pit and other stone elements
         const matStoneDark = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
-
         const matWoodDark = new THREE.MeshStandardMaterial({ color: 0x4A3728, roughness: 0.9 }); 
         const clothesColors = [0x8D6E63, 0x5D4037, 0x795548, 0x607D8B, 0x455A64, 0x78909C, 0xA1887F];
         const skinColor = 0xE6C2A4;
 
         // --- 5. Geometry Data ---
-        const houseWidth = 6; 
-        const houseLength = 14; 
-        const wallHeight = 3.5;
-        const wallThickness = 0.4;
+        const houseWidth = 6; const houseLength = 14; 
+        const wallHeight = 3.5; const wallThickness = 0.4;
         const splitRatio = 0.33; 
-        
         const lowerLength = houseLength * splitRatio;
         const upperLength = houseLength * (1 - splitRatio);
-        const dropHeight = 0.8; 
-        const stairWidth = 1.2;
+        const dropHeight = 0.8; const stairWidth = 1.2;
 
         const group = new THREE.Group();
         scene.add(group);
 
-        // === ARCHITECTURE ===
+        // Interactable Objects List
+        const interactables = [];
+
+        // === ARCHITECTURE (Static) ===
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0xC2B280 }));
         ground.rotation.x = -Math.PI / 2; ground.position.y = -0.15; ground.receiveShadow = true; scene.add(ground);
 
@@ -224,7 +245,7 @@
         upperFloor.position.set(0, (-0.1 + dropHeight/2), -houseLength/2 + lowerLength + upperLength/2);
         upperFloor.receiveShadow = true; group.add(upperFloor);
 
-        // Walls Group
+        // Walls Group (For Transparency Toggle)
         const wallsGroup = new THREE.Group();
         group.add(wallsGroup);
 
@@ -236,11 +257,8 @@
         rightWall.position.set(houseWidth/2 + wallThickness/2, wallHeight/2, 0);
         rightWall.castShadow = true; wallsGroup.add(rightWall);
 
-        // Left Wall (Split to allow Door)
-        const doorZ = -houseLength/2 + 2.5; 
-        const doorW = 1.2;
-        const doorH = 2.2;
-        
+        // Left Wall Split
+        const doorZ = -houseLength/2 + 2.5; const doorW = 1.2; const doorH = 2.2;
         const lwBackLen = (houseLength/2) - (doorZ + doorW/2);
         const lwBack = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, lwBackLen), matWallOpaque);
         lwBack.position.set(-houseWidth/2 - wallThickness/2, wallHeight/2, houseLength/2 - lwBackLen/2);
@@ -257,10 +275,10 @@
 
         const frontWall = new THREE.Mesh(new THREE.BoxGeometry(houseWidth + wallThickness*2, wallHeight, wallThickness), matWallTrans);
         frontWall.position.set(0, wallHeight/2, -houseLength/2 - wallThickness/2);
-        frontWall.visible = false;
+        frontWall.visible = false; // Initially hidden for cutaway view
         wallsGroup.add(frontWall);
 
-        // === THE DOOR ===
+        // Door
         const doorGroup = new THREE.Group();
         const frameV1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, doorH, 0.3), matWoodDark); frameV1.position.set(0, doorH/2, -doorW/2);
         const frameV2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, doorH, 0.3), matWoodDark); frameV2.position.set(0, doorH/2, doorW/2);
@@ -268,28 +286,21 @@
         const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.1, doorH-0.1, doorW-0.1), new THREE.MeshStandardMaterial({color: 0x5D4037}));
         doorPanel.position.set(0, doorH/2, -doorW/2 + 0.05); doorPanel.geometry.translate(0, 0, (doorW-0.1)/2); 
         doorPanel.rotation.y = 1.0; 
-        
         doorGroup.add(frameV1, frameV2, frameH, doorPanel);
         doorGroup.position.set(-houseWidth/2 - wallThickness/2, 0, doorZ);
         group.add(doorGroup);
 
         // Guest Partition
         const guestWallZ = houseLength/2 - 4.5;
-        const gWallWidth1 = houseWidth * 0.4;
-        const gWall1 = new THREE.Mesh(new THREE.BoxGeometry(gWallWidth1, wallHeight, 0.2), matWallTrans);
-        gWall1.position.set(-houseWidth/2 + gWallWidth1/2, wallHeight/2, guestWallZ);
-        group.add(gWall1);
-        const gWallWidth2 = houseWidth * 0.4;
-        const gWall2 = new THREE.Mesh(new THREE.BoxGeometry(gWallWidth2, wallHeight, 0.2), matWallTrans);
-        gWall2.position.set(houseWidth/2 - gWallWidth2/2, wallHeight/2, guestWallZ);
-        group.add(gWall2);
-        const gDoorWidth = houseWidth - gWallWidth1 - gWallWidth2;
-        const gWallTop = new THREE.Mesh(new THREE.BoxGeometry(gDoorWidth, wallHeight - 2.2, 0.2), matWallTrans);
-        gWallTop.position.set(0, 2.2 + (wallHeight - 2.2)/2, guestWallZ);
-        group.add(gWallTop);
+        const gWall1 = new THREE.Mesh(new THREE.BoxGeometry(houseWidth * 0.4, wallHeight, 0.2), matWallTrans);
+        gWall1.position.set(-houseWidth/2 + (houseWidth * 0.4)/2, wallHeight/2, guestWallZ); group.add(gWall1);
+        const gWall2 = new THREE.Mesh(new THREE.BoxGeometry(houseWidth * 0.4, wallHeight, 0.2), matWallTrans);
+        gWall2.position.set(houseWidth/2 - (houseWidth * 0.4)/2, wallHeight/2, guestWallZ); group.add(gWall2);
+        const gWallTop = new THREE.Mesh(new THREE.BoxGeometry(houseWidth - (houseWidth*0.8), wallHeight - 2.2, 0.2), matWallTrans);
+        gWallTop.position.set(0, 2.2 + (wallHeight - 2.2)/2, guestWallZ); group.add(gWallTop);
 
-        const steps = 4;
-        const stepHeight = dropHeight / steps;
+        // Stairs
+        const steps = 4; const stepHeight = dropHeight / steps;
         for(let i=0; i<steps; i++) {
             const step = new THREE.Mesh(new THREE.BoxGeometry(stairWidth, stepHeight * (i+1), 0.3), matMangerStone);
             step.position.set(houseWidth/2 - stairWidth/2, (stepHeight * (i+1))/2, -houseLength/2 + lowerLength - (0.3 * (steps - i)) + 0.15);
@@ -297,38 +308,27 @@
         }
 
         const guestRug = new THREE.Mesh(new THREE.BoxGeometry(houseWidth - 1, 0.05, 4), new THREE.MeshStandardMaterial({color: 0x8D6E63}));
-        guestRug.position.set(0, dropHeight + 0.11, houseLength/2 - 2.2);
-        group.add(guestRug);
+        guestRug.position.set(0, dropHeight + 0.11, houseLength/2 - 2.2); group.add(guestRug);
 
-        // === MANGER (CORRECTED) ===
+        // === MANGER (Static) ===
         const mangerGroup = new THREE.Group();
-        
-        // Basin 1 (Left) - Using lighter material
-        const basin1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), matMangerStone); // Lower height
-        basin1.position.set(-0.5, 0.15, 0); 
-        basin1.rotation.y = 0.1; 
-        mangerGroup.add(basin1);
-        
-        const hay1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.5), new THREE.MeshStandardMaterial({color: 0xE4D96F})); 
-        hay1.position.set(-0.5, 0.31, 0); 
-        mangerGroup.add(hay1);
-        
-        // Basin 2 (Right - Jesus) - Using lighter material
-        const basin2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), matMangerStone); // Lower height
-        basin2.position.set(0.5, 0.15, 0); 
-        basin2.rotation.y = -0.1; 
-        mangerGroup.add(basin2);
-        
-        // Hay in Basin 2 (Thicker to hold baby)
-        const hay2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 0.5), new THREE.MeshStandardMaterial({color: 0xE4D96F})); 
-        hay2.position.set(0.5, 0.3, 0); 
-        mangerGroup.add(hay2);
-        
+        const basin1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), matMangerStone); basin1.position.set(-0.5, 0.15, 0); basin1.rotation.y = 0.1; mangerGroup.add(basin1);
+        const hay1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.5), new THREE.MeshStandardMaterial({color: 0xE4D96F})); hay1.position.set(-0.5, 0.31, 0); mangerGroup.add(hay1);
+        const basin2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), matMangerStone); basin2.position.set(0.5, 0.15, 0); basin2.rotation.y = -0.1; mangerGroup.add(basin2);
+        const hay2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 0.5), new THREE.MeshStandardMaterial({color: 0xE4D96F})); hay2.position.set(0.5, 0.3, 0); mangerGroup.add(hay2);
         mangerGroup.position.set(-stairWidth/2 - 0.5, dropHeight, -houseLength/2 + lowerLength);
-        mangerGroup.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
         group.add(mangerGroup);
 
-        // === CHARACTERS ===
+        // === INTERACTABLE OBJECTS ===
+
+        function makeInteractable(mesh, name) {
+            mesh.userData.isInteractable = true;
+            mesh.userData.name = name;
+            interactables.push(mesh);
+            group.add(mesh);
+            return mesh;
+        }
+
         function createPerson(x, z, role, scale=1.0) {
             const person = new THREE.Group();
             const robeMat = new THREE.MeshStandardMaterial({ color: clothesColors[Math.floor(Math.random() * clothesColors.length)], roughness: 1 });
@@ -341,95 +341,148 @@
                 const arm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), robeMat); arm.position.set(0.3, bodyH * 0.7, 0.2); arm.rotation.x = -1; person.add(arm);
             }
             person.position.set(x, dropHeight, z); person.castShadow = true; person.rotation.y = Math.random() * Math.PI * 2;
-            person.userData = { speed: 0.5 + Math.random() * 0.5, offset: Math.random() * 10 };
-            return person;
+            
+            // Interaction Wrapper
+            const wrapper = new THREE.Group();
+            wrapper.add(person);
+            // Add hidden hitbox for easier selection
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshBasicMaterial({visible: false}));
+            hitbox.position.set(0, 0.9, 0);
+            wrapper.add(hitbox);
+            
+            return makeInteractable(wrapper, "Person");
         }
 
+        // Add People
         for(let i=0; i<8; i++) {
             const x = (Math.random() - 0.5) * (houseWidth - 1.5);
-            const z = (houseLength/2 - 0.5) - Math.random() * 3.5; group.add(createPerson(x, z, 'guest', 0.9 + Math.random()*0.1));
+            const z = (houseLength/2 - 0.5) - Math.random() * 3.5; 
+            createPerson(x, z, 'guest', 0.9 + Math.random()*0.1);
         }
-        const hostMom = createPerson(1.5, 1.0, 'cooking', 0.95); hostMom.position.z = 1.0; hostMom.rotation.y = Math.PI; group.add(hostMom);
-        const hostDad = createPerson(2.5, 0.5, 'talking', 1.0); hostDad.rotation.y = -Math.PI / 2; group.add(hostDad);
-        const child = createPerson(0.5, -houseLength/2 + lowerLength + 1.5, 'playing', 0.6); child.lookAt(mangerGroup.position); group.add(child);
+        const hostMom = createPerson(1.5, 1.0, 'cooking', 0.95); hostMom.children[0].position.z = 1.0; hostMom.children[0].rotation.y = Math.PI; 
+        const hostDad = createPerson(2.5, 0.5, 'talking', 1.0); hostDad.children[0].rotation.y = -Math.PI / 2;
+        const child = createPerson(0.5, -houseLength/2 + lowerLength + 1.5, 'playing', 0.6); child.children[0].lookAt(mangerGroup.position);
 
+        // Holy Family
         const matMary = new THREE.MeshStandardMaterial({color: 0x3F51B5});
         const maryBody = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 1.0, 12), matMary); maryBody.position.set(0, 0.5, 0);
         const maryHead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshStandardMaterial({color: skinColor})); maryHead.position.set(0, 1.1, 0);
-        const mary = new THREE.Group(); mary.add(maryBody, maryHead); mary.position.set(0.5, dropHeight, -houseLength/2 + lowerLength + 0.8); mary.lookAt(mangerGroup.position); group.add(mary);
+        const mary = new THREE.Group(); mary.add(maryBody, maryHead); 
+        const maryWrap = new THREE.Group(); maryWrap.add(mary);
+        maryWrap.position.set(0.5, dropHeight, -houseLength/2 + lowerLength + 0.8); mary.lookAt(mangerGroup.position);
+        makeInteractable(maryWrap, "Mary");
 
         const matJoseph = new THREE.MeshStandardMaterial({color: 0x5D4037});
         const josephBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.45, 1.45, 12), matJoseph); josephBody.position.set(0, 0.725, 0);
         const josephHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshStandardMaterial({color: skinColor})); josephHead.position.set(0, 1.55, 0);
-        const joseph = new THREE.Group(); joseph.add(josephBody, josephHead); joseph.position.set(-1.5, dropHeight, -houseLength/2 + lowerLength + 0.8); joseph.lookAt(mangerGroup.position); group.add(joseph);
+        const joseph = new THREE.Group(); joseph.add(josephBody, josephHead);
+        const josephWrap = new THREE.Group(); josephWrap.add(joseph);
+        josephWrap.position.set(-1.5, dropHeight, -houseLength/2 + lowerLength + 0.8); joseph.lookAt(mangerGroup.position);
+        makeInteractable(josephWrap, "Joseph");
 
+        // Baby
         const baby = new THREE.Group();
         const swaddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.35, 4, 8), new THREE.MeshStandardMaterial({color: 0xFFFFFF})); 
-        swaddle.rotation.z = Math.PI/2; 
-        swaddle.rotation.x = -0.2; 
-        baby.add(swaddle);
-        
+        swaddle.rotation.z = Math.PI/2; swaddle.rotation.x = -0.2; baby.add(swaddle);
         baby.position.set(0.5, dropHeight + 0.25, -houseLength/2 + lowerLength); 
-        group.add(baby);
+        makeInteractable(baby, "Baby Jesus");
 
-        const pit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.15, 16), matStoneDark); pit.position.set(1.5, dropHeight + 0.075, 0); group.add(pit);
+        // Props
+        const pit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.15, 16), matStoneDark); pit.position.set(1.5, dropHeight + 0.075, 0); 
         const ember = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35), new THREE.MeshBasicMaterial({color: 0xff4500})); ember.position.set(0, 0.2, 0); pit.add(ember);
+        makeInteractable(pit, "Fire Pit");
         
         function createAnimal(color, x, z) {
             const a = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 1.2), new THREE.MeshStandardMaterial({color:color})); body.position.y = 0.8; a.add(body);
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), new THREE.MeshStandardMaterial({color:color})); head.position.set(0, 1.2, 0.7); a.add(head);
-            a.position.set(x, 0, z); a.castShadow = true; a.userData = { type: 'animal', speed: 0.2 + Math.random()*0.2 }; return a;
+            a.position.set(x, 0, z); a.castShadow = true;
+            return makeInteractable(a, "Animal");
         }
-        const ox = createAnimal(0x795548, -0.5, -houseLength/2 + 2); ox.rotation.y = -0.2; group.add(ox);
-        const donkey = createAnimal(0x546E7A, -1.8, -houseLength/2 + 1.5); donkey.rotation.y = 0.3; group.add(donkey);
+        const ox = createAnimal(0x795548, -0.5, -houseLength/2 + 2); ox.rotation.y = -0.2;
+        const donkey = createAnimal(0x546E7A, -1.8, -houseLength/2 + 1.5); donkey.rotation.y = 0.3;
 
-        // === LABELS (SPRITES) ===
+        // === INTERACTION LOGIC (TRANSFORM CONTROLS) ===
+        const control = new TransformControls(camera, renderer.domElement);
+        // Disable orbit when dragging
+        control.addEventListener('dragging-changed', function (event) {
+            orbit.enabled = !event.value;
+        });
+        scene.add(control);
+
+        // Raycaster for selection
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', onMouseClick, false);
+        window.addEventListener('keydown', function(event) {
+            switch(event.key) {
+                case 't': control.setMode('translate'); break;
+                case 'r': control.setMode('rotate'); break;
+                case 's': control.setMode('scale'); break; // Just in case
+                case 'Escape': control.detach(); document.getElementById('edit-status').style.display = 'none'; break;
+            }
+        });
+
+        function onMouseClick(event) {
+            // Calculate mouse position in normalized device coordinates
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // Intersect against interactables (and their children)
+            const intersects = raycaster.intersectObjects(interactables, true);
+
+            if (intersects.length > 0) {
+                // Find the root object that is in our interactables list
+                let selectedObj = intersects[0].object;
+                while(selectedObj.parent && !interactables.includes(selectedObj)) {
+                    selectedObj = selectedObj.parent;
+                }
+
+                if (interactables.includes(selectedObj)) {
+                    control.attach(selectedObj);
+                    const status = document.getElementById('edit-status');
+                    status.style.display = 'block';
+                    status.innerText = `編輯中: ${selectedObj.userData.name || 'Object'} (按 R 旋轉)`;
+                }
+            } else {
+                // Clicked on nothing/background -> Deselect
+                // But check if we clicked on the gizmo itself (don't detach if clicking gizmo)
+                // TransformControls handles its own interaction, so we only detach if we clicked elsewhere
+                // Actually simpler: if we didn't hit an interactable, check if we hit the control? 
+                // Three.js TransformControls usually intercepts clicks. 
+                // We'll trust the user to click empty space to deselect or press Esc.
+                // control.detach(); 
+            }
+        }
+
+        // === LABELS (SPRITES) - Keeping them static for reference ===
         const labelsGroup = new THREE.Group();
         group.add(labelsGroup);
 
         function createLabel(text, x, y, z) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const fontSize = 48;
-            ctx.font = `bold ${fontSize}px "Noto Sans TC", sans-serif`;
-            
+            const fontSize = 48; ctx.font = `bold ${fontSize}px "Noto Sans TC", sans-serif`;
             const textMetrics = ctx.measureText(text);
             const textWidth = textMetrics.width;
-            
-            canvas.width = textWidth + 40;
-            canvas.height = fontSize + 40; 
-            
+            canvas.width = textWidth + 40; canvas.height = fontSize + 40; 
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.beginPath();
-            ctx.roundRect(0, 0, canvas.width, canvas.height, 20);
-            ctx.fill();
-            
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `bold ${fontSize}px "Noto Sans TC", sans-serif`; 
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.beginPath(); ctx.roundRect(0, 0, canvas.width, canvas.height, 20); ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 4; ctx.stroke();
+            ctx.fillStyle = '#ffffff'; ctx.font = `bold ${fontSize}px "Noto Sans TC", sans-serif`; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
             const texture = new THREE.CanvasTexture(canvas);
             const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
             const sprite = new THREE.Sprite(spriteMaterial);
-            
-            const scaleFactor = 0.02; 
-            sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
-            sprite.center.set(0.5, 0); 
-            sprite.position.set(x, y, z);
-            sprite.renderOrder = 999; 
-            
+            const scaleFactor = 0.02; sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
+            sprite.center.set(0.5, 0); sprite.position.set(x, y, z); sprite.renderOrder = 999; 
             const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0, -0.5, 0)]);
             const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-            const line = new THREE.Line(lineGeo, lineMat);
-            sprite.add(line);
-
+            const line = new THREE.Line(lineGeo, lineMat); sprite.add(line);
             return sprite;
         }
 
@@ -439,16 +492,9 @@
         labelsGroup.add(createLabel("客房", 0, 3.5, houseLength/2 - 2));
         labelsGroup.add(createLabel("樓梯", houseWidth/2 - stairWidth/2, 2.0, -houseLength/2 + lowerLength));
 
-
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
-            const time = Date.now() * 0.001;
-            scene.traverse((object) => {
-                if (object.userData && object.userData.speed) {
-                    object.rotation.y += Math.sin(time * object.userData.speed) * 0.002;
-                }
-            });
+            orbit.update();
             renderer.render(scene, camera);
         }
         
@@ -458,8 +504,9 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        let isTransparent = false;
-        window.toggleTransparency = function() {
+        // Toggles
+        window.toggleTransparency = function() { 
+            let isTransparent = wallsGroup.children[0].material === matWallTrans;
             isTransparent = !isTransparent;
             const btnText = document.getElementById('btn-text');
             const btnIcon = document.getElementById('btn-icon');
@@ -478,13 +525,11 @@
                 btnIcon.innerText = "👁️";
             }
         };
-
-        let showLabels = true;
-        window.toggleLabels = function() {
-            showLabels = !showLabels;
-            labelsGroup.visible = showLabels;
+        
+        window.toggleLabels = function() { 
+            labelsGroup.visible = !labelsGroup.visible; 
             const btn = document.getElementById('label-toggle');
-            if(showLabels) {
+            if(labelsGroup.visible) {
                 document.getElementById('lbl-text').innerText = "隱藏空間標籤";
                 document.getElementById('lbl-icon').innerText = "👁️";
                 btn.style.background = "#5e81ac";
@@ -493,7 +538,7 @@
                 document.getElementById('lbl-icon').innerText = "🙈";
                 btn.style.background = "#4c566a";
             }
-        }
+        };
 
         animate();
     </script>
