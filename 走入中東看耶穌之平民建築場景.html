@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1st Century Peasant House - Fixed</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3b4252; font-family: 'Noto Sans TC', sans-serif; }
+        
+        /* UI Panel - TOP LEFT */
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(46, 52, 64, 0.95);
+            color: #eceff4;
+            border-radius: 8px;
+            width: 280px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .panel-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .panel-header h1 { 
+            margin: 0; font-size: 16px; color: #ebcb8b; font-weight: 700; 
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        #panel-content {
+            padding: 16px;
+            max-height: 600px;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+        }
+
+        #info.collapsed #panel-content { max-height: 0; padding: 0 16px; }
+        
+        p { margin: 8px 0; font-size: 13px; color: #d8dee9; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px; }
+        .highlight { color: #a3be8c; font-weight: bold; }
+        .tag { background: #4c566a; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: #e5e9f0; min-width: 35px; text-align: center; }
+        .icon { min-width: 18px; }
+
+        /* Label Toggle Button - BOTTOM LEFT */
+        #label-toggle {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            background: #5e81ac;
+            color: #eceff4;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+        }
+        #label-toggle:hover { background: #81a1c1; transform: scale(1.05); }
+
+        /* Mode Toggle Button - BOTTOM RIGHT */
+        #mode-toggle {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            left: auto; 
+            background: #88c0d0;
+            color: #2e3440;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+        }
+        #mode-toggle:hover {
+            background: #81a1c1;
+            transform: scale(1.05);
+        }
+    </style>
+    <!-- Import Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="info">
+        <div class="panel-header" onclick="document.getElementById('info').classList.toggle('collapsed')">
+            <h1><span>🏷️</span> 伯利恆之家：修正版</h1>
+            <span style="font-size: 12px; color: #999;">▼</span>
+        </div>
+        <div id="panel-content">
+            <p><span class="icon">🪨</span><span><span class="tag">馬槽</span> <span class="highlight">嵌入式設計：</span> 改為淺色石材，與地基融為一體，不再突兀。</span></p>
+            <p><span class="icon">👶</span><span><span class="tag">聖子</span> <span class="highlight">安臥其中：</span> 耶穌已下沉至稻草堆中，不再懸空。</span></p>
+            <p><span class="icon">🚪</span><span><span class="tag">構造</span> <span class="highlight">實體開門：</span> 左側保留真實門洞與木門。</span></p>
+            <p style="margin-top:12px; font-size: 11px; color: #81a1c1; border-top: 1px solid #4c566a; padding-top: 8px;">
+                *請近距離觀察馬槽細節*
+            </p>
+        </div>
+    </div>
+
+    <button id="label-toggle" onclick="toggleLabels()">
+        <span id="lbl-icon">👁️</span> <span id="lbl-text">隱藏空間標籤</span>
+    </button>
+
+    <button id="mode-toggle" onclick="toggleTransparency()">
+        <span id="btn-icon">👁️</span> <span id="btn-text">切換全透視模式</span>
+    </button>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 1. Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 80);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(-14, 16, 14); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        renderer.transparent = true;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. Controls ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; 
+        controls.target.set(0, 0.5, 0);
+
+        // --- 3. Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); 
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0xfffce8, 1.2);
+        mainLight.position.set(-10, 20, 10);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        scene.add(mainLight);
+
+        const fillLight = new THREE.PointLight(0xffaa55, 0.8, 20);
+        fillLight.position.set(2, 5, 2);
+        scene.add(fillLight);
+
+        // --- 4. Materials ---
+        const matWallOpaque = new THREE.MeshStandardMaterial({ color: 0xE6Dcc3, roughness: 0.9 });
+        const matWallTrans = new THREE.MeshStandardMaterial({ 
+            color: 0xE6Dcc3, roughness: 0.9, transparent: true, opacity: 0.3,
+            side: THREE.DoubleSide, depthWrite: false
+        });
+        const matStoneFloor = new THREE.MeshStandardMaterial({ color: 0xA89F91, roughness: 0.9 });
+        const matMudFloor = new THREE.MeshStandardMaterial({ color: 0x8D6E63, roughness: 1.0 });
+        
+        // Manger material to match floor/stone for embedded look
+        const matMangerStone = new THREE.MeshStandardMaterial({ color: 0xA89F91, roughness: 0.95 }); 
+        
+        // FIX: Re-defined matStoneDark for the Pit and other stone elements
+        const matStoneDark = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
+
+        const matWoodDark = new THREE.MeshStandardMaterial({ color: 0x4A3728, roughness: 0.9 }); 
+        const clothesColors = [0x8D6E63, 0x5D4037, 0x795548, 0x607D8B, 0x455A64, 0x78909C, 0xA1887F];
+        const skinColor = 0xE6C2A4;
+
+        // --- 5. Geometry Data ---
+        const houseWidth = 6; 
+        const houseLength = 14; 
+        const wallHeight = 3.5;
+        const wallThickness = 0.4;
+        const splitRatio = 0.33; 
+        
+        const lowerLength = houseLength * splitRatio;
+        const upperLength = houseLength * (1 - splitRatio);
+        const dropHeight = 0.8; 
+        const stairWidth = 1.2;
+
+        const group = new THREE.Group();
+        scene.add(group);
+
+        // === ARCHITECTURE ===
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0xC2B280 }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = -0.15; ground.receiveShadow = true; scene.add(ground);
+
+        const lowerFloor = new THREE.Mesh(new THREE.BoxGeometry(houseWidth, 0.2, lowerLength), matMudFloor);
+        lowerFloor.position.set(0, -0.1, -houseLength/2 + lowerLength/2);
+        lowerFloor.receiveShadow = true; group.add(lowerFloor);
+        
+        const upperFloor = new THREE.Mesh(new THREE.BoxGeometry(houseWidth, 0.2 + dropHeight, upperLength), matStoneFloor);
+        upperFloor.position.set(0, (-0.1 + dropHeight/2), -houseLength/2 + lowerLength + upperLength/2);
+        upperFloor.receiveShadow = true; group.add(upperFloor);
+
+        // Walls Group
+        const wallsGroup = new THREE.Group();
+        group.add(wallsGroup);
+
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(houseWidth + wallThickness*2, wallHeight, wallThickness), matWallOpaque);
+        backWall.position.set(0, wallHeight/2, houseLength/2 + wallThickness/2);
+        backWall.castShadow = true; wallsGroup.add(backWall);
+        
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, houseLength), matWallOpaque);
+        rightWall.position.set(houseWidth/2 + wallThickness/2, wallHeight/2, 0);
+        rightWall.castShadow = true; wallsGroup.add(rightWall);
+
+        // Left Wall (Split to allow Door)
+        const doorZ = -houseLength/2 + 2.5; 
+        const doorW = 1.2;
+        const doorH = 2.2;
+        
+        const lwBackLen = (houseLength/2) - (doorZ + doorW/2);
+        const lwBack = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, lwBackLen), matWallOpaque);
+        lwBack.position.set(-houseWidth/2 - wallThickness/2, wallHeight/2, houseLength/2 - lwBackLen/2);
+        lwBack.castShadow = true; wallsGroup.add(lwBack);
+
+        const lwFrontLen = (doorZ - doorW/2) - (-houseLength/2);
+        const lwFront = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, lwFrontLen), matWallOpaque);
+        lwFront.position.set(-houseWidth/2 - wallThickness/2, wallHeight/2, -houseLength/2 + lwFrontLen/2);
+        lwFront.castShadow = true; wallsGroup.add(lwFront);
+
+        const lwTop = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight - doorH, doorW), matWallOpaque);
+        lwTop.position.set(-houseWidth/2 - wallThickness/2, doorH + (wallHeight-doorH)/2, doorZ);
+        lwTop.castShadow = true; wallsGroup.add(lwTop);
+
+        const frontWall = new THREE.Mesh(new THREE.BoxGeometry(houseWidth + wallThickness*2, wallHeight, wallThickness), matWallTrans);
+        frontWall.position.set(0, wallHeight/2, -houseLength/2 - wallThickness/2);
+        frontWall.visible = false;
+        wallsGroup.add(frontWall);
+
+        // === THE DOOR ===
+        const doorGroup = new THREE.Group();
+        const frameV1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, doorH, 0.3), matWoodDark); frameV1.position.set(0, doorH/2, -doorW/2);
+        const frameV2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, doorH, 0.3), matWoodDark); frameV2.position.set(0, doorH/2, doorW/2);
+        const frameH = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, doorW+0.2), matWoodDark); frameH.position.set(0, doorH, 0);
+        const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.1, doorH-0.1, doorW-0.1), new THREE.MeshStandardMaterial({color: 0x5D4037}));
+        doorPanel.position.set(0, doorH/2, -doorW/2 + 0.05); doorPanel.geometry.translate(0, 0, (doorW-0.1)/2); 
+        doorPanel.rotation.y = 1.0; 
+        
+        doorGroup.add(frameV1, frameV2, frameH, doorPanel);
+        doorGroup.position.set(-houseWidth/2 - wallThickness/2, 0, doorZ);
+        group.add(doorGroup);
+
+        // Guest Partition
+        const guestWallZ = houseLength/2 - 4.5;
+        const gWallWidth1 = houseWidth * 0.4;
+        const gWall1 = new THREE.Mesh(new THREE.BoxGeometry(gWallWidth1, wallHeight, 0.2), matWallTrans);
+        gWall1.position.set(-houseWidth/2 + gWallWidth1/2, wallHeight/2, guestWallZ);
+        group.add(gWall1);
+        const gWallWidth2 = houseWidth * 0.4;
+        const gWall2 = new THREE.Mesh(new THREE.BoxGeometry(gWallWidth2, wallHeight, 0.2), matWallTrans);
+        gWall2.position.set(houseWidth/2 - gWallWidth2/2, wallHeight/2, guestWallZ);
+        group.add(gWall2);
+        const gDoorWidth = houseWidth - gWallWidth1 - gWallWidth2;
+        const gWallTop = new THREE.Mesh(new THREE.BoxGeometry(gDoorWidth, wallHeight - 2.2, 0.2), matWallTrans);
+        gWallTop.position.set(0, 2.2 + (wallHeight - 2.2)/2, guestWallZ);
+        group.add(gWallTop);
+
+        const steps = 4;
+        const stepHeight = dropHeight / steps;
+        for(let i=0; i<steps; i++) {
+            const step = new THREE.Mesh(new THREE.BoxGeometry(stairWidth, stepHeight * (i+1), 0.3), matMangerStone);
+            step.position.set(houseWidth/2 - stairWidth/2, (stepHeight * (i+1))/2, -houseLength/2 + lowerLength - (0.3 * (steps - i)) + 0.15);
+            step.receiveShadow = true; group.add(step);
+        }
+
+        const guestRug = new THREE.Mesh(new THREE.BoxGeometry(houseWidth - 1, 0.05, 4), new THREE.MeshStandardMaterial({color: 0x8D6E63}));
+        guestRug.position.set(0, dropHeight + 0.11, houseLength/2 - 2.2);
+        group.add(guestRug);
+
+        // === MANGER (CORRECTED) ===
+        const mangerGroup = new THREE.Group();
+        
+        // Basin 1 (Left) - Using lighter material
+        const basin1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), matMangerStone); // Lower height
+        basin1.position.set(-0.5, 0.15, 0); 
+        basin1.rotation.y = 0.1; 
+        mangerGroup.add(basin1);
+        
+        const hay1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.5), new THREE.MeshStandardMaterial({color: 0xE4D96F})); 
+        hay1.position.set(-0.5, 0.31, 0); 
+        mangerGroup.add(hay1);
+        
+        // Basin 2 (Right - Jesus) - Using lighter material
+        const basin2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.7), matMangerStone); // Lower height
+        basin2.position.set(0.5, 0.15, 0); 
+        basin2.rotation.y = -0.1; 
+        mangerGroup.add(basin2);
+        
+        // Hay in Basin 2 (Thicker to hold baby)
+        const hay2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 0.5), new THREE.MeshStandardMaterial({color: 0xE4D96F})); 
+        hay2.position.set(0.5, 0.3, 0); 
+        mangerGroup.add(hay2);
+        
+        mangerGroup.position.set(-stairWidth/2 - 0.5, dropHeight, -houseLength/2 + lowerLength);
+        mangerGroup.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
+        group.add(mangerGroup);
+
+        // === CHARACTERS ===
+        function createPerson(x, z, role, scale=1.0) {
+            const person = new THREE.Group();
+            const robeMat = new THREE.MeshStandardMaterial({ color: clothesColors[Math.floor(Math.random() * clothesColors.length)], roughness: 1 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.5 });
+            const bodyH = 1.4 * scale;
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.4 * scale, bodyH, 8), robeMat); body.position.y = bodyH/2; person.add(body);
+            const headR = 0.2 * scale;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(headR, 12, 12), skinMat); head.position.y = bodyH + headR * 0.8; person.add(head);
+            if (role === 'cooking') {
+                const arm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), robeMat); arm.position.set(0.3, bodyH * 0.7, 0.2); arm.rotation.x = -1; person.add(arm);
+            }
+            person.position.set(x, dropHeight, z); person.castShadow = true; person.rotation.y = Math.random() * Math.PI * 2;
+            person.userData = { speed: 0.5 + Math.random() * 0.5, offset: Math.random() * 10 };
+            return person;
+        }
+
+        for(let i=0; i<8; i++) {
+            const x = (Math.random() - 0.5) * (houseWidth - 1.5);
+            const z = (houseLength/2 - 0.5) - Math.random() * 3.5; group.add(createPerson(x, z, 'guest', 0.9 + Math.random()*0.1));
+        }
+        const hostMom = createPerson(1.5, 1.0, 'cooking', 0.95); hostMom.position.z = 1.0; hostMom.rotation.y = Math.PI; group.add(hostMom);
+        const hostDad = createPerson(2.5, 0.5, 'talking', 1.0); hostDad.rotation.y = -Math.PI / 2; group.add(hostDad);
+        const child = createPerson(0.5, -houseLength/2 + lowerLength + 1.5, 'playing', 0.6); child.lookAt(mangerGroup.position); group.add(child);
+
+        const matMary = new THREE.MeshStandardMaterial({color: 0x3F51B5});
+        const maryBody = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 1.0, 12), matMary); maryBody.position.set(0, 0.5, 0);
+        const maryHead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshStandardMaterial({color: skinColor})); maryHead.position.set(0, 1.1, 0);
+        const mary = new THREE.Group(); mary.add(maryBody, maryHead); mary.position.set(0.5, dropHeight, -houseLength/2 + lowerLength + 0.8); mary.lookAt(mangerGroup.position); group.add(mary);
+
+        const matJoseph = new THREE.MeshStandardMaterial({color: 0x5D4037});
+        const josephBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.45, 1.45, 12), matJoseph); josephBody.position.set(0, 0.725, 0);
+        const josephHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshStandardMaterial({color: skinColor})); josephHead.position.set(0, 1.55, 0);
+        const joseph = new THREE.Group(); joseph.add(josephBody, josephHead); joseph.position.set(-1.5, dropHeight, -houseLength/2 + lowerLength + 0.8); joseph.lookAt(mangerGroup.position); group.add(joseph);
+
+        const baby = new THREE.Group();
+        const swaddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.35, 4, 8), new THREE.MeshStandardMaterial({color: 0xFFFFFF})); 
+        swaddle.rotation.z = Math.PI/2; 
+        swaddle.rotation.x = -0.2; 
+        baby.add(swaddle);
+        
+        baby.position.set(0.5, dropHeight + 0.25, -houseLength/2 + lowerLength); 
+        group.add(baby);
+
+        const pit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.15, 16), matStoneDark); pit.position.set(1.5, dropHeight + 0.075, 0); group.add(pit);
+        const ember = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35), new THREE.MeshBasicMaterial({color: 0xff4500})); ember.position.set(0, 0.2, 0); pit.add(ember);
+        
+        function createAnimal(color, x, z) {
+            const a = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 1.2), new THREE.MeshStandardMaterial({color:color})); body.position.y = 0.8; a.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), new THREE.MeshStandardMaterial({color:color})); head.position.set(0, 1.2, 0.7); a.add(head);
+            a.position.set(x, 0, z); a.castShadow = true; a.userData = { type: 'animal', speed: 0.2 + Math.random()*0.2 }; return a;
+        }
+        const ox = createAnimal(0x795548, -0.5, -houseLength/2 + 2); ox.rotation.y = -0.2; group.add(ox);
+        const donkey = createAnimal(0x546E7A, -1.8, -houseLength/2 + 1.5); donkey.rotation.y = 0.3; group.add(donkey);
+
+        // === LABELS (SPRITES) ===
+        const labelsGroup = new THREE.Group();
+        group.add(labelsGroup);
+
+        function createLabel(text, x, y, z) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const fontSize = 48;
+            ctx.font = `bold ${fontSize}px "Noto Sans TC", sans-serif`;
+            
+            const textMetrics = ctx.measureText(text);
+            const textWidth = textMetrics.width;
+            
+            canvas.width = textWidth + 40;
+            canvas.height = fontSize + 40; 
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, canvas.width, canvas.height, 20);
+            ctx.fill();
+            
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${fontSize}px "Noto Sans TC", sans-serif`; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            
+            const scaleFactor = 0.02; 
+            sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
+            sprite.center.set(0.5, 0); 
+            sprite.position.set(x, y, z);
+            sprite.renderOrder = 999; 
+            
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0, -0.5, 0)]);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+            const line = new THREE.Line(lineGeo, lineMat);
+            sprite.add(line);
+
+            return sprite;
+        }
+
+        labelsGroup.add(createLabel("畜舍", -houseWidth/2 + 1.0, 2.5, -houseLength/2 + lowerLength/2 + 1));
+        labelsGroup.add(createLabel("馬槽", -0.5, 2.0, -houseLength/2 + lowerLength));
+        labelsGroup.add(createLabel("家庭起居室", 0, 3.5, 0.5));
+        labelsGroup.add(createLabel("客房", 0, 3.5, houseLength/2 - 2));
+        labelsGroup.add(createLabel("樓梯", houseWidth/2 - stairWidth/2, 2.0, -houseLength/2 + lowerLength));
+
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            const time = Date.now() * 0.001;
+            scene.traverse((object) => {
+                if (object.userData && object.userData.speed) {
+                    object.rotation.y += Math.sin(time * object.userData.speed) * 0.002;
+                }
+            });
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        let isTransparent = false;
+        window.toggleTransparency = function() {
+            isTransparent = !isTransparent;
+            const btnText = document.getElementById('btn-text');
+            const btnIcon = document.getElementById('btn-icon');
+            
+            if (isTransparent) {
+                wallsGroup.children.forEach(mesh => {
+                    mesh.material = matWallTrans;
+                });
+                btnText.innerText = "切換實體模式";
+                btnIcon.innerText = "🧱";
+            } else {
+                wallsGroup.children.forEach(mesh => {
+                    if (mesh === frontWall) { } else { mesh.material = matWallOpaque; }
+                });
+                btnText.innerText = "切換全透視模式";
+                btnIcon.innerText = "👁️";
+            }
+        };
+
+        let showLabels = true;
+        window.toggleLabels = function() {
+            showLabels = !showLabels;
+            labelsGroup.visible = showLabels;
+            const btn = document.getElementById('label-toggle');
+            if(showLabels) {
+                document.getElementById('lbl-text').innerText = "隱藏空間標籤";
+                document.getElementById('lbl-icon').innerText = "👁️";
+                btn.style.background = "#5e81ac";
+            } else {
+                document.getElementById('lbl-text').innerText = "顯示空間標籤";
+                document.getElementById('lbl-icon').innerText = "🙈";
+                btn.style.background = "#4c566a";
+            }
+        }
+
+        animate();
+    </script>
+</body>
+</html>
